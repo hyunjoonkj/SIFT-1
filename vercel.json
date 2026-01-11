@@ -1,6 +1,6 @@
 {
-    "projectSettings": {
-        "framework": null,
-        "rootDirectory": "apps/mobile"
-    }
+    "framework": null,
+    "installCommand": "cd apps/mobile && npm install",
+    "buildCommand": "cd apps/mobile && npx expo export --platform web",
+    "outputDirectory": "apps/mobile/dist"
 }
