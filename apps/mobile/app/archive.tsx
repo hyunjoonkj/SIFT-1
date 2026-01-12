@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, ScrollView, RefreshControl, Image, TouchableOpacity, Alert, Text } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,7 +7,9 @@ import { supabase } from '../lib/supabase';
 import { Theme } from '../lib/theme';
 import { Typography } from '../components/design-system/Typography';
 import { ArrowLeft, RotateCcw, Trash2 } from 'lucide-react-native';
+import { API_URL } from '../lib/config';
 import * as Haptics from 'expo-haptics';
+import SiftFeed from '../components/SiftFeed';
 
 interface Page {
     id: string;
@@ -29,9 +31,7 @@ export default function ArchiveScreen() {
 
     const fetchArchived = useCallback(async () => {
         try {
-            const debuggerHost = Constants.expoConfig?.hostUri;
-            const localhost = debuggerHost?.split(':')[0] || 'localhost';
-            const apiUrl = `http://${localhost}:3000/api/archive`;
+            const apiUrl = `${API_URL}/api/archive`;
 
             const response = await fetch(apiUrl);
             const data = await response.json();
@@ -58,9 +58,7 @@ export default function ArchiveScreen() {
 
     const handleRestore = async (id: string) => {
         try {
-            const debuggerHost = Constants.expoConfig?.hostUri;
-            const localhost = debuggerHost?.split(':')[0] || 'localhost';
-            const apiUrl = `http://${localhost}:3000/api/archive`;
+            const apiUrl = `${API_URL}/api/archive`;
 
             const response = await fetch(apiUrl, {
                 method: 'PUT',
@@ -89,9 +87,7 @@ export default function ArchiveScreen() {
                     style: "destructive",
                     onPress: async () => {
                         try {
-                            const debuggerHost = Constants.expoConfig?.hostUri;
-                            const localhost = debuggerHost?.split(':')[0] || 'localhost';
-                            const apiUrl = `http://${localhost}:3000/api/archive?id=${id}`;
+                            const apiUrl = `${API_URL}/api/archive?id=${id}`;
 
                             const response = await fetch(apiUrl, { method: 'DELETE' });
 
@@ -109,6 +105,15 @@ export default function ArchiveScreen() {
         );
     };
 
+    const lastScrollY = useRef(0);
+    const onScroll = useCallback((event: any) => {
+        const y = event.nativeEvent.contentOffset.y;
+        if (Math.abs(y - lastScrollY.current) > 100) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            lastScrollY.current = y;
+        }
+    }, []);
+
     return (
         <SafeAreaView className="flex-1 bg-canvas">
             <Stack.Screen options={{ headerShown: false }} />
@@ -122,7 +127,9 @@ export default function ArchiveScreen() {
             </View>
 
             <ScrollView
-                contentContainerClassName="p-5 pb-32"
+                onScroll={onScroll}
+                scrollEventThrottle={16}
+                contentContainerClassName="pt-5 pb-32"
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Theme.colors.text.primary} />}
             >
                 {pages.length === 0 && !loading ? (
@@ -131,30 +138,13 @@ export default function ArchiveScreen() {
                         <Typography variant="body" className="mt-4 text-ink-secondary">Trash is empty</Typography>
                     </View>
                 ) : (
-                    pages.map(page => (
-                        <View key={page.id} className="bg-white rounded-xl p-4 mb-3 border border-border/50 shadow-sm flex-row justify-between items-center">
-                            <View className="flex-1 mr-4">
-                                <Typography variant="h3" numberOfLines={1} className="mb-1 text-ink text-base">{page.title}</Typography>
-                                <Typography variant="caption" className="text-ink-secondary" numberOfLines={1}>{page.url}</Typography>
-                            </View>
-
-                            <View className="flex-row gap-2">
-                                <TouchableOpacity
-                                    onPress={() => handleRestore(page.id)}
-                                    className="p-2 bg-green-50 rounded-full"
-                                >
-                                    <RotateCcw size={18} color="#059669" />
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    onPress={() => handleDeleteForever(page.id)}
-                                    className="p-2 bg-red-50 rounded-full"
-                                >
-                                    <Trash2 size={18} color="#DC2626" />
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    ))
+                    <SiftFeed
+                        pages={pages}
+                        mode="archive"
+                        loading={loading}
+                        onArchive={handleRestore}
+                        onDeleteForever={handleDeleteForever}
+                    />
                 )}
             </ScrollView>
         </SafeAreaView>

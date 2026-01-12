@@ -27,6 +27,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export function PageCard({ id, title, gist, url, tags = [], onDelete, onDeleteForever, onPin, isPinned, imageUrl }: PageCardProps & { imageUrl?: string }) {
     const router = useRouter();
     const scale = useSharedValue(1);
+    const [imageError, setImageError] = React.useState(false);
 
     const animatedStyle = useAnimatedStyle(() => ({
         transform: [{ scale: scale.value }],
@@ -37,7 +38,9 @@ export function PageCard({ id, title, gist, url, tags = [], onDelete, onDeleteFo
     const domain = url ? new URL(url).hostname.replace('www.', '') : '';
 
     // Formatting Tags: Primary Tag • Domain
-    const primaryTag = tags[0] || 'Saved';
+    const ALLOWED_TAGS = ["Cooking", "Baking", "Tech", "Health", "Lifestyle", "Professional"];
+    const validTags = tags.filter(t => ALLOWED_TAGS.includes(t));
+    const primaryTag = validTags[0] || 'Lifestyle'; // Default to Lifestyle if no valid tag found
     const tagLine = `${primaryTag}  •  ${domain}`.toUpperCase();
 
     // Hide summary if empty or "No summary generated"
@@ -151,46 +154,63 @@ export function PageCard({ id, title, gist, url, tags = [], onDelete, onDeleteFo
                 onPressIn={handlePressIn}
                 onPressOut={handlePressOut}
                 style={animatedStyle}
-                className="mb-3"
+                className="mb-6" // Increased spacing between cards
             >
-                <Card className="overflow-hidden p-0 relative">
+                <View
+                    className="bg-white rounded-[12px] overflow-hidden border border-gray-100" // Flatter: removed generic Card shadow, added border
+                    // Optional: Very subtle shadow if needed, but 'flatter' is more modern
+                    style={{
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.03, // Ultra subtle
+                        shadowRadius: 8,
+                        elevation: 2
+                    }}
+                >
                     {/* Pin Indicator */}
                     {isPinned && (
-                        <View className="absolute top-2 right-2 z-10 bg-white/90 p-1.5 rounded-full shadow-sm">
-                            <Pin size={12} color={Theme.colors.text.primary} fill={Theme.colors.text.primary} />
+                        <View className="absolute top-3 right-3 z-10 bg-white/90 p-1.5 rounded-full shadow-sm backdrop-blur-md">
+                            <Pin size={10} color={Theme.colors.text.primary} fill={Theme.colors.text.primary} />
                         </View>
                     )}
 
-                    {/* 1. Cover Image */}
-                    {imageUrl ? (
+                    {/* 1. Cover Image - Taller, more immersive with Fallback */}
+                    {imageUrl && (
                         <Image
-                            source={{ uri: imageUrl }}
-                            style={{ width: '100%', height: 140 }}
-                            className="bg-gray-100"
+                            source={imageError ? require('../assets/covers/gastronomy.jpg') : { uri: imageUrl }}
+                            style={{ width: '100%', height: 180 }}
+                            resizeMode="cover"
+                            className="bg-gray-50"
+                            onError={() => setImageError(true)}
                         />
-                    ) : null}
+                    )}
 
-                    <View className="p-5">
-                        {/* 2. Refined Eyebrow */}
-                        <View className="mb-2">
-                            <Text className="text-[11px] font-bold text-slate-500 tracking-widest leading-4">
-                                {tagLine}
+                    <View className="p-4 pt-3"> {/* Reduced top padding to bring text closer to image */}
+
+                        {/* 2. Refined Eyebrow - Minimalist */}
+                        <View className="flex-row items-center mb-1.5 opacity-70">
+                            <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-[2px]">
+                                {domain || 'SIFT'}
                             </Text>
                         </View>
 
-                        {/* 3. Title */}
-                        <Typography variant="h3" className="mb-1 tracking-[-0.5px] text-ink" numberOfLines={2}>
+                        {/* 3. Title - Elegant Serif or Clean Sans */}
+                        {/* Using standard font but ensuring tracking/height is refined */}
+                        <Text className="text-[18px] font-medium text-gray-900 leading-[24px] tracking-tight mb-1.5">
                             {displayTitle}
-                        </Typography>
+                        </Text>
 
-                        {/* 4. Body */}
+                        {/* 4. Body - Secondary, lighter */}
                         {showSummary && (
-                            <Typography variant="body" className="text-ink-secondary leading-[22px]" numberOfLines={3}>
+                            <Text
+                                className="text-[14px] text-gray-500 leading-[20px]"
+                                numberOfLines={2}
+                            >
                                 {gist}
-                            </Typography>
+                            </Text>
                         )}
                     </View>
-                </Card>
+                </View>
             </AnimatedPressable>
         </ReanimatedSwipeable>
     );

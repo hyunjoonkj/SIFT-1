@@ -9,7 +9,8 @@ import {
     ActionSheetIOS,
     Platform,
     Image,
-    KeyboardAvoidingView
+    KeyboardAvoidingView,
+    ScrollView
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
@@ -19,6 +20,8 @@ import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { Theme } from '../../lib/theme';
 import { WebView } from 'react-native-webview';
+import SafeContentRenderer from '../../components/SafeContentRenderer';
+import { API_URL } from '../../lib/config';
 
 export default function PageDetail() {
     const { id } = useLocalSearchParams();
@@ -27,6 +30,7 @@ export default function PageDetail() {
     const [page, setPage] = useState<any>(null);
     const [content, setContent] = useState('');
     const [isEditing, setIsEditing] = useState(false);
+    const [imageError, setImageError] = useState(false);
     const webviewRef = useRef<WebView>(null);
 
     useEffect(() => {
@@ -74,9 +78,7 @@ export default function PageDetail() {
                     style: "destructive",
                     onPress: async () => {
                         try {
-                            const debuggerHost = Constants.expoConfig?.hostUri;
-                            const localhost = debuggerHost?.split(':')[0] || 'localhost';
-                            const apiUrl = `http://${localhost}:3000/api/archive`;
+                            const apiUrl = `${API_URL}/api/archive`;
 
                             const response = await fetch(apiUrl, {
                                 method: 'PUT',
@@ -227,8 +229,24 @@ export default function PageDetail() {
                     Simplest: Inject Image into WebView content or just give up on sticky.
                     Let's just use the WebView for everything in View Mode.
                 */}
-
-                {isEditing ? (
+                {/* View Mode */}
+                {!isEditing ? (
+                    <ScrollView className="flex-1 bg-[#F7F7F5]" contentContainerStyle={{ paddingBottom: 100 }}>
+                        {page?.metadata?.image_url && (
+                            <Image
+                                source={imageError ? require('../../assets/covers/gastronomy.jpg') : { uri: page?.metadata?.image_url }}
+                                style={{ width: '100%', height: 300 }}
+                                resizeMode="cover"
+                                onError={() => setImageError(true)}
+                                className="mb-0"
+                            />
+                        )}
+                        <View className="pt-6 px-5">
+                            <SafeContentRenderer content={content} />
+                        </View>
+                    </ScrollView>
+                ) : (
+                    // Editing Mode (Text Input)
                     <TextInput
                         className="flex-1 px-5 pt-4 text-base font-sans text-ink leading-7"
                         multiline
@@ -240,23 +258,107 @@ export default function PageDetail() {
                         selectionColor={Theme.colors.text.primary}
                         autoFocus
                     />
-                ) : (
-                    <WebView
-                        ref={webviewRef}
-                        originWhitelist={['*']}
-                        source={{
-                            html: generateHtml(content, page?.metadata?.image_url)
-                        }}
-                        style={{ flex: 1, backgroundColor: 'transparent' }}
-                        onMessage={handleMessage}
-                        javaScriptEnabled={true}
-                        domStorageEnabled={true}
-                    />
                 )}
             </View>
         </View>
     );
 }
+
+// Helper to check if string is JSON
+const isJson = (str: string) => {
+    try {
+        const result = JSON.parse(str);
+        return (typeof result === 'object' && result !== null);
+    } catch (e) { return false; }
+};
+
+const ContentRenderer = ({ content }: { content: string }) => {
+    // 2. If it's JSON (Instagram Recipe), parse and style it
+    const data = JSON.parse(content);
+
+    return (
+        <View className="px-5 pb-20">
+            {/* GENERIC FIELDS (e.g. Core Promise, TL;DR) */}
+            {Object.entries(data).map(([key, value]) => {
+                if (['Inputs', 'Actions', 'title', 'summary', 'category', 'tags'].includes(key)) return null; // Skip specific handled keys
+                if (typeof value === 'object') return null; // Skip complex objects not handled yet
+                return (
+                    <View key={key} className="mb-6">
+                        <Text className="text-sm font-bold uppercase tracking-widest text-[#8E8E93] mb-2">{key.replace(/([A-Z])/g, ' $1').trim()}</Text>
+                        <Text className="text-lg text-[#37352F] leading-7">{String(value)}</Text>
+                    </View>
+                );
+            })}
+
+            {/* INGREDIENTS SECTION (Inputs) */}
+            {data.Inputs && (
+                <View className="mb-8 p-6 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                    <Text className="text-xl font-serif font-semibold mb-6 text-[#37352F]">Ingredients</Text>
+                    {/* Handle both Object (Groups) and Array (Flat) */}
+                    {!Array.isArray(data.Inputs) && typeof data.Inputs === 'object' ? (
+                        Object.entries(data.Inputs).map(([group, items]) => (
+                            <View key={group} className="mb-5 last:mb-0">
+                                <Text className="text-base font-semibold mb-3 text-[#37352F] uppercase tracking-wide opacity-80">{group}</Text>
+                                {(items as string[]).map((ing, i) => (
+                                    <View key={i} className="flex-row items-start mb-2">
+                                        <Text className="text-[#37352F] mr-2 text-lg">•</Text>
+                                        <Text className="text-lg text-[#37352F] leading-7 flex-1 font-sans">{ing}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                        ))
+                    ) : (
+                        (data.Inputs as string[]).map((ing, i) => (
+                            <View key={i} className="flex-row items-start mb-3 border-b border-gray-50 pb-2 last:border-0">
+                                {/* <View className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2.5 mr-3 opacity-60" /> */}
+                                <Text className="text-lg text-[#37352F] leading-7 flex-1 font-sans">{ing}</Text>
+                            </View>
+                        ))
+                    )}
+                </View>
+            )}
+
+            {/* STEPS SECTION (Actions) */}
+            {data.Actions && (
+                <View className="mb-8">
+                    <Text className="text-xl font-serif font-semibold mb-6 text-[#37352F] px-2">Preparation</Text>
+                    {data.Actions.map((step: string, i: number) => (
+                        <View key={i} className="flex-row mb-6">
+                            <View className="w-8 h-8 rounded-full bg-[#37352F]/5 items-center justify-center mr-4 mt-1">
+                                <Text className="text-sm font-bold text-[#37352F]">{i + 1}</Text>
+                            </View>
+                            <Text className="flex-1 text-lg text-[#37352F] leading-7 font-sans">{step}</Text>
+                        </View>
+                    ))}
+                </View>
+            )}
+
+            {/* VIBE / ELEMENTS SECTION (For Design/Art) */}
+            {data.Elements && (
+                <View className="mb-8">
+                    <Text className="text-xl font-serif font-semibold mb-4 text-[#37352F]">Visual Elements</Text>
+                    {data.Elements.map((el: string, i: number) => (
+                        <View key={i} className="mb-3 px-4 py-3 bg-white rounded-xl border border-gray-100">
+                            <Text className="text-lg text-[#37352F]">{el}</Text>
+                        </View>
+                    ))}
+                </View>
+            )}
+            {/* FEATURES SECTION (For Tech) */}
+            {data['Key Features'] && ( // JSON keys might have spaces
+                <View className="mb-8">
+                    <Text className="text-xl font-serif font-semibold mb-4 text-[#37352F]">Key Features</Text>
+                    {data['Key Features'].map((el: string, i: number) => (
+                        <View key={i} className="flex-row items-start mb-2 px-2">
+                            <Check size={18} color="#22c55e" style={{ marginTop: 5, marginRight: 10 }} />
+                            <Text className="text-lg text-[#37352F] flex-1 leading-7">{el}</Text>
+                        </View>
+                    ))}
+                </View>
+            )}
+        </View>
+    );
+};
 
 // Helper to generate full HTML including the image and logic
 function generateHtml(contentMarkdown: string, imageUrl?: string) {
@@ -356,8 +458,7 @@ function generateHtml(contentMarkdown: string, imageUrl?: string) {
             </style>
         </head>
         <body>
-            ${imageHtml}
-            <div id="content">${htmlContent}</div>
+            <div id="content">${imageHtml}${htmlContent}</div>
             
             <!-- Floating Menu UI -->
             <div id="floating-menu">

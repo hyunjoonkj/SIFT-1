@@ -17,60 +17,44 @@ const openai = process.env.OPENAI_API_KEY
     : null;
 
 const SYSTEM_PROMPT = `
-# Core Rules
-1. **No Preamble/Postscript:** Output *only* the requested data.
-2. **Prioritize Captions:** Use text overlays/captions primarily.
-3. **Tone:** Objective, concise, but natural.
-4. **Formatting:** Use Markdown headers (#, ##) for main sections. Use **bolding** for emphasis.
+    You are an expert curator and archivist.
+    Your goal is to read the provided web content and synthesize it into a structured JSON response.
 
-# Content-Specific Protocols
+    **OUTPUT FORMAT:**
+    You must return a valid JSON object with these exact keys:
+    {
+        "title": "A short, catchy title",
+        "category": "Cooking, Tech, Design, Health, Fashion, News, or Random",
+        "tags": ["Tag1", "Tag2"],
+        "summary": "The full formatted content in Markdown"
+    }
 
-## IF Content is a RECIPE:
-Format as follows:
-# [Recipe Name]
-> *Brief 1-sentence description.*
+    **TAGGING RULES (STRICT):**
+    - You must select tags **ONLY** from this list: ["Cooking", "Baking", "Tech", "Health", "Lifestyle", "Professional"].
+    - **DO NOT** create new tags.
+    - If no tag fits, use "Lifestyle".
+    - Select exactly 2-3 tags.
 
-## Ingredients
-- [Quantity] [Unit] **[Ingredient]**
-- [Quantity] [Unit] **[Ingredient]**
-
-## Instructions
-1. **[Action]**: [Details]
-2. **[Action]**: [Details]
-
-## IF Content is INFORMATIONAL/EDUCATIONAL:
-Format as follows:
-# [Main Topic/Title]
-> [2-3 sentence summary/hook.]
-
-## Key Points
-* **[Concept]**: [Explanation]
-    * **[Concept]**: [Explanation]
-
-## IF Content is GENERAL/ENTERTAINMENT:
-Format as follows:
-# Summary
-[A single paragraph summary. Use **bolding** to highlight key events or names.]
-
-# FINAL REQUIREMENT
-At the very bottom of your response, strictly output one line for categorization:
-Tags: [Tag1, Tag2]
-STRICTLY choose from ONLY these categories (max 2):
-- Cooking
-- Baking
-- Tech
-- Health
-- Lifestyle
-- Professional
-
-If none fit perfectly, choose the closest one (e.g. 'Professional' for Finance/News, 'Lifestyle' for Entertainment).
+    **CONTENT INSTRUCTIONS (for the 'summary' field):**
+    - **Voice**: Clean, concise, functional.
+    - **Structure**:
+      - Start with a 1-sentence synopsis.
+      - Use **H2 (##)** for headers.
+      - Use **Bold** for key items.
+      - Use **Bullet Points** for lists.
+    
+    **CRITICAL FOR RECIPES/HOW-TO:**
+    - If the content is a Recipe, you MUST extract the full **Ingredients** and **Preparation/Steps** verbatim into the markdown.
+    - Use headers: ## Ingredients, ## Preparation.
 `;
 
 // Helper to extract meta tags
 function extractMetaTags(html: string) {
     const ogImageMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i);
+    const titleMatch = html.match(/<title>([^<]*)<\/title>/i) || html.match(/<meta\s+property=["']og:title["']\s+content=["']([^"']+)["']/i);
     return {
-        ogImage: ogImageMatch ? ogImageMatch[1] : null
+        ogImage: ogImageMatch ? ogImageMatch[1] : null,
+        title: titleMatch ? titleMatch[1] : null
     };
 }
 
@@ -84,6 +68,7 @@ export async function POST(request: Request) {
         }
 
         console.log(`[SIFT] Processing URL: ${url} (${platform})`);
+        console.log(`[SIFT] Env Check - Apify: ${!!process.env.APIFY_API_TOKEN}, OpenAI: ${!!process.env.OPENAI_API_KEY}, Supabase: ${!!process.env.SUPABASE_SERVICE_ROLE_KEY}`);
 
         // 1. Scrape Content & Metadata
         let scrapedData: any = {}; // Use any for Apify data
@@ -102,6 +87,9 @@ export async function POST(request: Request) {
             const html = await response.text();
             const meta = extractMetaTags(html);
             ogImage = meta.ogImage;
+            if (meta.title) {
+                scrapedData = { ...scrapedData, title: meta.title };
+            }
             console.log('[SIFT] Found OG Image:', ogImage);
         } catch (e) {
             console.log('[SIFT] Metadata fetch failed:', e);
@@ -109,70 +97,233 @@ export async function POST(request: Request) {
 
         if (process.env.APIFY_API_TOKEN) {
             console.log('[SIFT] Apify Token present. Starting scrape...');
-            const input = {
-                "postURLs": [url],
-                "shouldDownloadVideos": false,
-                "shouldDownloadCovers": false,
-                "shouldDownloadSlideshowImages": false,
-                "proxyConfiguration": { "useApifyProxy": true }
-            };
 
-            const run = await apifyClient.actor('clockworks/tiktok-scraper').call(input);
-            const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
-            scrapedData = items[0] || {};
+            let actorId = 'clockworks/tiktok-scraper'; // Default
+            let input: any = {};
 
-            // Fallback for Title/Image from Scraper Data (Better for TikTok/Insta)
-            if (!ogImage && scrapedData) {
-                // TikTok specific structure usually has videoMeta.coverUrl or just coverUrl
-                // NOTE: 'clockworks/tiktok-scraper' output varies. Common paths:
-                const possibleImage = scrapedData.videoMeta?.coverUrl || scrapedData.imageUrl || scrapedData.thumbnailUrl;
-                if (possibleImage) {
-                    ogImage = possibleImage;
-                    console.log('[SIFT] Using Scraper Image:', ogImage);
-                }
+            // Platform Router
+            if (url.includes('youtube.com') || url.includes('youtu.be')) {
+                console.log('[SIFT] Detected YouTube URL');
+                actorId = 'apify/youtube-scraper';
+                input = {
+                    "urls": [url],
+                    "downloadSubtitles": true,
+                    "saveSubsToKVS": false
+                };
+            } else if (url.includes('instagram.com')) {
+                console.log('[SIFT] Detected Instagram URL (Using User Config)');
+                actorId = 'shu8hvrXbJbY3Eb9W'; // User specified Actor
+                console.log(`[SIFT] Using Actor: ${actorId} `);
+                input = {
+                    "directUrls": [url],
+                    "resultsType": "posts",
+                    "resultsLimit": 1,   // We only need the one post
+                    "addParentData": false,
+                    "proxyConfiguration": { "useApifyProxy": true }
+                };
+            } else {
+                // Default / TikTok (Revert to Clockworks - Previous Working Ver)
+                console.log('[SIFT] Detected TikTok/Other URL (Reverted to Clockworks)');
+                actorId = 'clockworks/tiktok-scraper';
+                input = {
+                    "postURLs": [url],
+                    "shouldDownloadVideos": false,
+                    "shouldDownloadCovers": false,
+                    "shouldDownloadSlideshowImages": false,
+                    "proxyConfiguration": { "useApifyProxy": true }
+                };
             }
+
+            try {
+                const run = await apifyClient.actor(actorId).call(input);
+                const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
+
+                // Normalization Strategy: Try to get data into a common format for OpenAI
+                if (!items || items.length === 0) {
+                    console.warn('[SIFT] Apify returned 0 items.');
+                    throw new Error("No items returned from scraper");
+                }
+
+                const rawItem: any = items[0] || {};
+
+                // CHECKPOINT 1: What exactly did Apify give us?
+                console.log("🔍 [1] Apify Raw Input:", JSON.stringify(rawItem).substring(0, 200));
+
+                if (url.includes('youtube.com') || url.includes('youtu.be')) {
+                    scrapedData = {
+                        title: rawItem.title,
+                        description: rawItem.description,
+                        caption: rawItem.description, // Mapping to caption for AI
+                        author: rawItem.channelName,
+                        transcript: rawItem.subtitles ? JSON.stringify(rawItem.subtitles) : "No transcript available.",
+                        videoMeta: { coverUrl: rawItem.thumbnailUrl }
+                    };
+                } else if (url.includes('instagram.com')) {
+                    // Instagram "posts" actor output mapping
+                    console.log('[SIFT] Raw Instagram Item Keys:', Object.keys(rawItem));
+                    // Handle caption edge cases (sometimes object with text property)
+                    const captionText = (typeof rawItem.caption === 'object' && rawItem.caption !== null)
+                        ? rawItem.caption.text
+                        : (rawItem.caption || rawItem.text || "No caption detected.");
+
+                    scrapedData = {
+                        caption: captionText,
+                        author: rawItem.ownerUsername || (rawItem.owner && rawItem.owner.username),
+                        imageUrl: rawItem.displayUrl || rawItem.thumbnailUrl,
+                        videoMeta: { coverUrl: rawItem.displayUrl || rawItem.thumbnailUrl }
+                    };
+                } else if (url.includes('tiktok.com')) {
+                    // Official TikTok Scraper Output Mapping
+                    scrapedData = {
+                        caption: rawItem.text || rawItem.description || "No caption.",
+                        author: rawItem.authorMeta ? rawItem.authorMeta.name : rawItem.author,
+                        imageUrl: rawItem.imageUrl || rawItem.videoMeta?.coverUrl,
+                        videoMeta: { coverUrl: rawItem.imageUrl }
+                    };
+                } else {
+                    scrapedData = rawItem;
+                }
+
+                // Prioritize Scraper Image (Better for TikTok/Insta than generic OG)
+                if (scrapedData) {
+                    const possibleImage = scrapedData.videoMeta?.coverUrl || scrapedData.imageUrl || scrapedData.thumbnailUrl;
+                    if (possibleImage) {
+                        ogImage = possibleImage;
+                        console.log('[SIFT] Using Scraper Image (Priority):', ogImage);
+                    }
+                }
+            } catch (apifyError: any) {
+                console.error('[SIFT] Apify Error:', JSON.stringify(apifyError, null, 2));
+                // Check if error is due to Proxy group access denied
+                if (apifyError.message && apifyError.message.includes('proxy group')) {
+                    console.warn('[SIFT] Proxy Group Access Denied. Retry without RESIDENTIAL group?');
+                }
+                scrapedData = { error: "Failed to scrape content" };
+            }
+
         } else {
             console.log('[SIFT] No Apify Token. Using mock data.');
             scrapedData = { caption: "Test Caption" };
         }
 
+        // 1.5. Validate Scraped Data & Re-host Image (Anti-Link-Rot)
+        if (scrapedData && !scrapedData.error) {
+            // Determine the best image URL to save
+            const targetImageUrl = scrapedData.videoMeta?.coverUrl || scrapedData.imageUrl || scrapedData.thumbnailUrl;
+
+            if (targetImageUrl && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+                try {
+                    console.log('[SIFT] Re-hosting image to Supabase Storage...');
+                    const imgResponse = await fetch(targetImageUrl);
+                    if (imgResponse.ok) {
+                        const imgBlob = await imgResponse.arrayBuffer();
+                        const contentType = imgResponse.headers.get('content-type') || 'image/jpeg';
+                        const ext = contentType.split('/')[1] || 'jpg';
+                        const fileName = `covers/${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
+
+                        const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+                            .from('sift-assets')
+                            .upload(fileName, imgBlob, {
+                                contentType,
+                                upsert: true
+                            });
+
+                        if (uploadError) {
+                            console.warn('[SIFT] Image Upload Failed (Bucket might not exist?):', uploadError.message);
+                            // Fallback: Use original URL (Wait, original expires. But better than nothing?)
+                            // Actually, if upload fails, we keep targetImageUrl.
+                        } else {
+                            // Get Public URL
+                            const { data: { publicUrl } } = supabaseAdmin.storage
+                                .from('sift-assets')
+                                .getPublicUrl(fileName);
+
+                            console.log('[SIFT] Image Re-hosted:', publicUrl);
+                            scrapedData.imageUrl = publicUrl;
+                            ogImage = publicUrl; // Update generic OG too
+                        }
+                    }
+                } catch (imgError) {
+                    console.error('[SIFT] Image Re-hosting Exception:', imgError);
+                }
+            } else {
+                console.log('[SIFT] Skipping Re-hosting (No Service Key or Image)');
+            }
+        }
+
+        if (scrapedData.error) {
+            console.warn('[SIFT] Scraping failed. Fallback to metadata-only mode.');
+            scrapedData = null;
+        }
+
         // 2. Synthesize with OpenAI
-        let content = "";
         let title = "Untitled Page";
-        let summary = ""; // Empty default
-        let tags: string[] = [];
+        let summary = "Summary unavailable.";
+        let category = "Random";
+        let tags: string[] = ["Saved"];
 
-        if (openai) {
-            // ... (Existing OpenAI call logic)
+        // Strategy: 
+        // A) If we have scraped data -> Full AI Analysis
+        // B) If we only have OG Metadata -> Basic AI Classification (optional) or Defaults
+        // Let's try to infer category from URL if nothing else.
+
+        // Validate that we actually have content to summarize
+        const textToAnalyze = scrapedData?.caption || scrapedData?.description || scrapedData?.transcript || scrapedData?.title;
+        const hasContent = scrapedData && textToAnalyze;
+
+        if (openai && scrapedData && hasContent) {
             console.log('[SIFT] OpenAI Key present. Generating summary...');
-            const completion = await openai.chat.completions.create({
-                model: "gpt-4o",
-                messages: [
-                    { role: "system", content: SYSTEM_PROMPT },
-                    { role: "user", content: JSON.stringify(scrapedData) }
-                ],
-            });
 
-            content = completion.choices[0].message.content || "";
+            if (!textToAnalyze || textToAnalyze.length < 5) {
+                console.error("❌ [ERROR] Input text is too short or missing!");
+                // STOP HERE: Don't waste money calling OpenAI on empty text
+                // But we don't return, we just fall through to fallback
+                console.warn("Skipping AI due to empty text");
+            } else {
+                console.log("✅ [2] Sending to OpenAI:", textToAnalyze.substring(0, 100) + "...");
 
-            // Extract Title, Summary, Tags
-            const titleMatch = content.match(/^#\s+(.+)$/m);
-            if (titleMatch) title = titleMatch[1].trim();
+                try {
+                    // Truncate massive inputs to prevent timeout/token limits
+                    const safeInput = JSON.stringify(scrapedData).substring(0, 20000);
 
-            const summaryMatch = content.match(/>\s*(.+)/); // Simple blockquote match
-            if (summaryMatch) summary = summaryMatch[1].trim();
+                    const completion = await openai.chat.completions.create({
+                        model: "gpt-4o",
+                        "messages": [
+                            { "role": "system", "content": SYSTEM_PROMPT },
+                            { "role": "user", "content": safeInput }
+                        ],
+                        "response_format": { "type": "json_object" }
+                    }, { timeout: 120000 }); // Explicit 120s timeout
 
-            // Extract Tags: Tags: [Tag1, Tag2]
-            const tagsLineMatch = content.match(/Tags:\s*\[(.*?)\]/);
-            if (tagsLineMatch && tagsLineMatch[1]) {
-                tags = tagsLineMatch[1].split(',').map(t => t.trim());
+                    const rawAiResponse = completion.choices[0].message.content || "{}";
+
+                    // CHECKPOINT 3: What did the AI actually say?
+                    console.log("🤖 [3] AI Raw Output:", rawAiResponse);
+
+                    const parsedData = JSON.parse(rawAiResponse);
+
+                    // CHECKPOINT 4: Did parsing work?
+                    console.log("✨ [4] Parsed Object keys:", Object.keys(parsedData));
+
+                    title = parsedData.title || title;
+                    summary = parsedData.summary || summary;
+                    category = parsedData.category || category;
+                    tags = parsedData.tags || [];
+
+                } catch (aiError) {
+                    console.error("💥 [CRITICAL FAILURE]", aiError);
+                }
             }
         } else {
-            // Mock
-            content = "# Mock Page\n\n> This is a mock.";
-            title = "Mock Page";
-            summary = "This is a mock.";
-            tags = ["Test", "Mock"];
+            // Fallback: No AI or Scraping Failed
+            const hostname = new URL(url).hostname.replace('www.', '');
+            // Prefer meta title if we captured it (even if scraping failed, we might have got it from HTML)
+            const metaTitle = (scrapedData && scrapedData.title) ? scrapedData.title : null;
+
+            title = metaTitle || `Saved from ${hostname}`;
+            summary = "Content could not be scraped. Saved as bookmark.";
+            category = "Random";
+            tags = ["Bookmark"];
         }
 
         // 3. Save to Supabase
@@ -184,12 +335,13 @@ export async function POST(request: Request) {
                 platform: platform || 'unknown',
                 title,
                 summary,
-                content,
+                content: summary,
                 tags,
                 metadata: {
                     source: 'sift-api',
                     scraped_at: new Date().toISOString(),
-                    image_url: ogImage // <--- Saved here
+                    image_url: ogImage,
+                    category // Save category in metadata for now if not in schema
                 }
             })
             .select()
@@ -204,7 +356,6 @@ export async function POST(request: Request) {
 
     } catch (error: unknown) {
         console.error('[SIFT] Internal Error:', error);
-        // ... logging
         const errorMessage = error instanceof Error ? error.message : 'Internal Server Error';
         return NextResponse.json({ error: errorMessage }, { status: 500 });
     }

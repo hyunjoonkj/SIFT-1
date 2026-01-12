@@ -1,4 +1,5 @@
-import { View, ScrollView, RefreshControl, TextInput, TouchableOpacity, AppState, DeviceEventEmitter } from "react-native";
+import { View, ScrollView, RefreshControl, TextInput, TouchableOpacity, AppState, DeviceEventEmitter, Pressable, Keyboard } from "react-native";
+
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState, useCallback, useRef } from "react";
 import * as Linking from 'expo-linking';
@@ -10,9 +11,11 @@ import { supabase } from "../../lib/supabase";
 import { Toast } from "../../components/Toast";
 import { Typography } from "../../components/design-system/Typography";
 import { Theme } from "../../lib/theme";
+import { API_URL } from "../../lib/config";
 import { HeroCarousel } from "../../components/home/HeroCarousel";
 import { FilterBar } from "../../components/home/FilterBar";
-import { MasonryList } from "../../components/home/MasonryList";
+import SiftFeed from "../../components/SiftFeed";
+// import { MasonryList } from "../../components/home/MasonryList"; // Unused now
 import { useRouter } from "expo-router";
 import { useShareIntent } from 'expo-share-intent';
 
@@ -39,29 +42,33 @@ export default function Index() {
     const [toastMessage, setToastMessage] = useState("");
     const [toastVisible, setToastVisible] = useState(false);
     const [toastAction, setToastAction] = useState<{ label: string, onPress: () => void } | undefined>(undefined);
+    const [toastSecondaryAction, setToastSecondaryAction] = useState<{ label: string, onPress: () => void } | undefined>(undefined);
     const [manualUrl, setManualUrl] = useState("");
     const lastCheckedUrl = useRef<string | null>(null);
+    const inputRef = useRef<TextInput>(null);
+
+    const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
 
     // Filter State
     const [activeFilter, setActiveFilter] = useState("All");
 
     const router = useRouter();
 
-    // Derived: Unique Tags (Custom Order)
-    const dynamicTags = Array.from(new Set(pages.flatMap(p => p.tags || [])));
-    const allTags = Array.from(new Set([...ALLOWED_TAGS, ...dynamicTags]));
+    // Derived: Strict Tags Only
+    const allTags = ALLOWED_TAGS;
 
     // Derived: Filtered Pages
     const filteredPages = activeFilter === 'All'
         ? pages
         : pages
-            .filter(p => p.tags?.includes(activeFilter))
+            .filter(p => p.tags?.some(t => t.toLowerCase() === activeFilter.toLowerCase()))
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
 
-    const showToast = (message: string, action?: { label: string, onPress: () => void }) => {
+    const showToast = (message: string, action?: { label: string, onPress: () => void }, secondaryAction?: { label: string, onPress: () => void }) => {
         setToastMessage(message);
         setToastAction(action);
+        setToastSecondaryAction(secondaryAction);
         setToastVisible(true);
     };
 
@@ -104,6 +111,11 @@ export default function Index() {
                     onPress: () => {
                         setManualUrl(content); // Pre-fill visual
                         processSharedUrl(content);
+                    }
+                }, {
+                    label: "Dismiss",
+                    onPress: () => {
+                        // Do nothing, just close
                     }
                 });
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -150,16 +162,34 @@ export default function Index() {
         }
     }, []);
 
+    const [processingUrl, setProcessingUrl] = useState<string | null>(null);
+
     const processSharedUrl = async (url: string) => {
+        if (processingUrl === url) return; // Prevent duplicate clicks/intents
         console.log('Processing shared URL:', url);
-        showToast("Sifting...");
+
+        setProcessingUrl(url);
+        showToast("Currently Sifting...");
+
+        // Setup Timers
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 Minute Hard Timeout
+
+        // "Taking longer" feedback at 30s
+        const feedbackTimer = setTimeout(() => {
+            showToast("This is taking longer than usual, we are sifting very hard!", undefined, undefined);
+        }, 30000);
 
         try {
+            // Priority: Tunnel URL -> Vercel -> Expo Debugger Host -> Localhost fallback
+            const envUrl = "https://fuzzy-shirts-pull.loca.lt"; // Hardcoded Tunnel URL
             const debuggerHost = Constants.expoConfig?.hostUri;
             const localhost = debuggerHost?.split(':')[0] || 'localhost';
-            const apiUrl = `http://${localhost}:3000/api/sift`;
 
-            console.log('Calling API at:', apiUrl);
+            const apiUrl = `${API_URL}/api/sift`;
+
+            console.log('Attempting to fetch:', apiUrl);
+            // showToast removed per user request
 
             const response = await fetch(apiUrl, {
                 method: 'POST',
@@ -170,25 +200,36 @@ export default function Index() {
                     url: url,
                     platform: 'share_sheet',
                 }),
+                signal: controller.signal
             });
 
             if (!response.ok) {
-                const text = await response.text();
-                // console.error('API Error:', text); // Optional log
-                throw new Error('API failed');
+                const errorData = await response.json().catch(() => ({}));
+                const msg = errorData.error || 'API failed';
+                console.error('API Error:', msg);
+                showToast(`Error: ${msg}`);
+                throw new Error(msg);
             }
 
             // Success is handled by Realtime subscription, but let's give immediate feedback
             showToast("Sifted!");
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-        } catch (error) {
-            console.error('Error processing URL:', error);
-            showToast("Error sifting");
+        } catch (error: any) {
+            if (error.name === 'AbortError') {
+                showToast("Request timed out (2 mins).");
+            } else {
+                console.error('Error processing URL:', error);
+                showToast("Error sifting");
+            }
+        } finally {
+            clearTimeout(timeoutId);
+            clearTimeout(feedbackTimer);
+            setTimeout(() => setProcessingUrl(null), 2000); // Cooldown
         }
     };
 
-    const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
+
 
     useEffect(() => {
         const intent = shareIntent as any;
@@ -257,6 +298,16 @@ export default function Index() {
             listener.remove();
         };
     }, [fetchPages, handleDeepLink]);
+
+    const lastScrollY = useRef(0);
+    const onScroll = useCallback((event: any) => {
+        const y = event.nativeEvent.contentOffset.y;
+        // Trigger haptic every 100px of scroll for a "tick" feel
+        if (Math.abs(y - lastScrollY.current) > 100) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            lastScrollY.current = y;
+        }
+    }, []);
 
     const onRefresh = useCallback(() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); // Tactile "Thud"
@@ -345,6 +396,7 @@ export default function Index() {
 
     const handleSubmitUrl = () => {
         if (manualUrl.trim()) {
+            Keyboard.dismiss();
             processSharedUrl(manualUrl.trim());
             setManualUrl("");
         }
@@ -355,6 +407,8 @@ export default function Index() {
             <ScrollView
                 ref={scrollViewRef}
                 contentContainerClassName="pb-32"
+                onScroll={onScroll}
+                scrollEventThrottle={16}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Theme.colors.text.primary} />
                 }
@@ -379,8 +433,13 @@ export default function Index() {
                             </TouchableOpacity>
                         </View>
 
-                        <View className="flex-row items-center bg-white h-[50px] rounded-full px-4 border border-border/50 shadow-sm" style={Theme.shadows.card}>
+                        <Pressable
+                            onPress={() => inputRef.current?.focus()}
+                            className="flex-row items-center bg-white h-[50px] rounded-full px-4 border border-border/50 shadow-sm"
+                            style={Theme.shadows.card}
+                        >
                             <TextInput
+                                ref={inputRef}
                                 className="flex-1 text-ink font-sans text-[17px] ml-2"
                                 placeholder="Sift a new URL..."
                                 placeholderTextColor={Theme.colors.text.tertiary}
@@ -398,7 +457,7 @@ export default function Index() {
                             >
                                 <View className="border-t-2 border-r-2 border-white w-2 h-2 rotate-45 mr-[2px]" />
                             </TouchableOpacity>
-                        </View>
+                        </Pressable>
                     </View>
 
                     {/* Hero Carousel */}
@@ -412,12 +471,13 @@ export default function Index() {
                         onSelect={setActiveFilter}
                     />
 
-                    {/* Masonry Feed */}
-                    <MasonryList
+                    {/* Sift Masonry Feed */}
+                    <SiftFeed
                         pages={filteredPages}
-                        onDelete={deletePage}
-                        onDeleteForever={deletePageForever}
+                        loading={loading}
+                        onArchive={deletePage}
                         onPin={togglePin}
+                        onDeleteForever={deletePageForever}
                     />
                 </View>
 
@@ -433,6 +493,7 @@ export default function Index() {
                 visible={toastVisible}
                 onHide={() => setToastVisible(false)}
                 action={toastAction}
+                secondaryAction={toastSecondaryAction}
             />
         </SafeAreaView>
     );
