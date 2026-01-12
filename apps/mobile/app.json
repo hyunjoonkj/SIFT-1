@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.sift.app",
+      "bundleIdentifier": "com.hkjstudio.sift",
       "infoPlist": {
         "CFBundleURLTypes": [
           {
@@ -31,7 +31,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.sift.app",
+      "package": "com.hkjstudio.sift",
       "edgeToEdgeEnabled": true,
       "intentFilters": [
         {
@@ -58,7 +58,7 @@
         "expo-share-intent",
         {
           "ios": {
-            "appGroupIdentifier": "group.com.sift.app",
+            "appGroupIdentifier": "group.com.hkjstudio.sift",
             "activationRules": {
               "NSExtensionActivationSupportsWebURLWithMaxCount": 1
             }
