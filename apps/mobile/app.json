@@ -23,7 +23,17 @@
               "sift"
             ]
           }
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSExtension": {
+          "NSExtensionAttributes": {
+            "NSExtensionActivationRule": {
+              "NSExtensionActivationSupportsWebURLWithMaxCount": 1
+            }
+          },
+          "NSExtensionPointIdentifier": "com.apple.share-services",
+          "NSExtensionPrincipalClass": "ShareViewController"
+        }
       }
     },
     "android": {
@@ -57,17 +67,21 @@
       [
         "expo-share-intent",
         {
-          "ios": {
-            "appGroupIdentifier": "group.com.hkjstudio.sift",
-            "activationRules": {
-              "NSExtensionActivationSupportsWebURLWithMaxCount": 1
-            }
+          "iosAppGroupIdentifier": "group.com.hkjstudio.sift",
+          "iosActivationRules": {
+            "NSExtensionActivationSupportsWebURLWithMaxCount": 1
           },
           "android": {
             "disableCreateTask": false
           }
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4f97e75c-3da1-403c-9e5a-92156c51f400"
+      }
+    }
   }
 }
