@@ -6,6 +6,9 @@ const withShareExtensionPodfile = (config) => {
 target 'ShareExtension' do
   use_expo_modules!
   config = use_native_modules!
+  
+  # Inherit search paths and configuration from the main project
+  inherit! :complete
 end
 `;
 
