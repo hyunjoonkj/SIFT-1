@@ -12,9 +12,16 @@ target 'ShareExtension' do
 end
 `;
 
-        if (!config.modResults.contents.includes("target 'ShareExtension'")) {
+        const contents = config.modResults.contents;
+        // Regex to match existing ShareExtension target block (simple matching)
+        const regex = /target 'ShareExtension' do[\s\S]*?end/g;
+
+        if (regex.test(contents)) {
+            config.modResults.contents = contents.replace(regex, targetBlock.trim());
+        } else {
             config.modResults.contents += targetBlock;
         }
+
         return config;
     });
 };
