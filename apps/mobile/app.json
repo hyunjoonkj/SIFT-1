@@ -73,7 +73,8 @@
           },
           "android": {
             "disableCreateTask": false
-          }
+          },
+          "appleTeamId": "8DA3BAGA32"
         }
       ],
       "./plugins/withShareExtensionPodfile.js"
