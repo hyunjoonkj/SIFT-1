@@ -1,5 +1,5 @@
 
-const { withPodfile } = require('@expo/config-plugins');
+const { withPodfile } = require('expo/config-plugins');
 
 const withShareExtensionExclusions = (config) => {
     return withPodfile(config, (config) => {
