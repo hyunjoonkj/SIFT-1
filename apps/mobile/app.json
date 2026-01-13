@@ -87,8 +87,26 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "4f97e75c-3da1-403c-9e5a-92156c51f400"
+        "projectId": "4f97e75c-3da1-403c-9e5a-92156c51f400",
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "ShareExtension",
+                  "bundleIdentifier": "com.hkjstudio.sift.share-extension",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.hkjstudio.sift"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
       }
-    }
+    },
+    "owner": "hkjstudio"
   }
 }
