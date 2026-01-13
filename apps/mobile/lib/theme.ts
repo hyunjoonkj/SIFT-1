@@ -8,6 +8,7 @@ export const Theme = {
             tertiary: '#8E8E93',
         },
         border: '#E5E5EA',     // Very subtle divider
+        primary: '#5856D6',    // Indigo (Brand)
         accent: '#007AFF',     // iOS Blue
         danger: '#FF3B30',
     },

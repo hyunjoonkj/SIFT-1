@@ -47,7 +47,7 @@ export default function ShareScreen() {
                     // Let's just go home and let the user confirm or let the context pick it up.
 
                     // BETTER: Redirect to index with the manual URL pre-filled if logic permits
-                    router.replace('/');
+                    router.replace(`/(tabs)/?siftUrl=${encodeURIComponent(targetUrl)}`);
                 }, 100);
             } else {
                 // No URL found? Just go home.

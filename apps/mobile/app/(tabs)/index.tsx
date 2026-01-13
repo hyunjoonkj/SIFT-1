@@ -16,7 +16,7 @@ import { HeroCarousel } from "../../components/home/HeroCarousel";
 import { FilterBar } from "../../components/home/FilterBar";
 import SiftFeed from "../../components/SiftFeed";
 // import { MasonryList } from "../../components/home/MasonryList"; // Unused now
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useShareIntent } from 'expo-share-intent';
 import { safeSift } from "../../lib/sift-api";
 
@@ -54,6 +54,21 @@ export default function Index() {
     const [activeFilter, setActiveFilter] = useState("All");
 
     const router = useRouter();
+    const params = useLocalSearchParams();
+
+    // Listen for manual redirect params (from share.tsx)
+    useEffect(() => {
+        if (params.siftUrl) {
+            const url = decodeURIComponent(params.siftUrl as string);
+            console.log("Index received siftUrl param:", url);
+            // Clear param to avoid loop? Next.js router handles this, Expo router might persist.
+            // But processSharedUrl checks for duplicates so it's fine.
+            processSharedUrl(url);
+
+            // Optional cleanup visual
+            router.setParams({ siftUrl: undefined });
+        }
+    }, [params.siftUrl]);
 
     // Derived: Strict Tags Only
     const allTags = ALLOWED_TAGS;
