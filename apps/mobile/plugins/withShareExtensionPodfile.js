@@ -55,6 +55,36 @@ end
       console.log('Warning: Could not find privacy_file_aggregation_enabled setting to replace.');
     }
 
+    // 3. Inject post_install hook to manually remove React-Core_privacy bundle
+    const postInstallHook = `
+    react_native_post_install(
+      installer,
+      config[:reactNativePath],
+      :mac_catalyst_enabled => false,
+      :ccache_enabled => ccache_enabled?(podfile_properties),
+    )
+
+    # safe_removal: Manually remove React-Core_privacy.bundle from React-Core target to prevent duplicates
+    installer.pods_project.targets.each do |target|
+      if target.name == 'React-Core'
+        target.resource_build_phase.files.each do |file|
+          if file.display_name == 'React-Core_privacy.bundle'
+            target.resource_build_phase.remove_build_file(file)
+            puts "[ShareExtension Fix] Removed React-Core_privacy.bundle from React-Core target"
+          end
+        end
+      end
+    end
+`;
+
+    // Regex to match the standard react_native_post_install call
+    const postInstallRegex = /react_native_post_install\([\s\S]*?\)/;
+
+    if (postInstallRegex.test(newContents)) {
+      console.log('Action: Injecting specific React-Core privacy bundle removal script');
+      newContents = newContents.replace(postInstallRegex, postInstallHook.trim());
+    }
+
     config.modResults.contents = newContents;
 
     return config;
