@@ -18,6 +18,7 @@ import SiftFeed from "../../components/SiftFeed";
 // import { MasonryList } from "../../components/home/MasonryList"; // Unused now
 import { useRouter } from "expo-router";
 import { useShareIntent } from 'expo-share-intent';
+import { safeSift } from "../../lib/sift-api";
 
 interface Page {
     id: string;
@@ -171,59 +172,25 @@ export default function Index() {
         setProcessingUrl(url);
         showToast("Currently Sifting...");
 
-        // Setup Timers
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 Minute Hard Timeout
-
-        // "Taking longer" feedback at 30s
+        // "Taking longer" feedback (Optional, safeSift handles the actual fetch)
         const feedbackTimer = setTimeout(() => {
-            showToast("This is taking longer than usual, we are sifting very hard!", undefined, undefined);
+            showToast("Still sifting...", undefined, undefined);
         }, 30000);
 
         try {
-            // Priority: Tunnel URL -> Vercel -> Expo Debugger Host -> Localhost fallback
-            const envUrl = "https://fuzzy-shirts-pull.loca.lt"; // Hardcoded Tunnel URL
-            const debuggerHost = Constants.expoConfig?.hostUri;
-            const localhost = debuggerHost?.split(':')[0] || 'localhost';
+            // Layer 2: Pipeline Guard
+            await safeSift(url);
 
-            const apiUrl = `${API_URL}/api/sift`;
-
-            console.log('Attempting to fetch:', apiUrl);
-            // showToast removed per user request
-
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    url: url,
-                    platform: 'share_sheet',
-                }),
-                signal: controller.signal
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                const msg = errorData.error || 'API failed';
-                console.error('API Error:', msg);
-                showToast(`Error: ${msg}`);
-                throw new Error(msg);
-            }
-
-            // Success is handled by Realtime subscription, but let's give immediate feedback
+            // Success handled by Realtime + Toast
             showToast("Sifted!");
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
         } catch (error: any) {
-            if (error.name === 'AbortError') {
-                showToast("Request timed out (2 mins).");
-            } else {
-                console.error('Error processing URL:', error);
-                showToast("Error sifting");
-            }
+            console.error('Error processing URL:', error);
+            // Error toast handled by safeSift or here? 
+            // safeSift throws, so we catch here.
+            showToast(error.message || "Error sifting");
         } finally {
-            clearTimeout(timeoutId);
             clearTimeout(feedbackTimer);
             setTimeout(() => setProcessingUrl(null), 2000); // Cooldown
         }
