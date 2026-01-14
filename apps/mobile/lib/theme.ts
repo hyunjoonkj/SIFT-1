@@ -5,7 +5,7 @@ export const Theme = {
         text: {
             primary: '#1C1C1E',  // Soft Black (Apple Label)
             secondary: '#3A3A3C', // Darker gray for better readability
-            tertiary: '#8E8E93',
+            tertiary: '#6C6C70', // WCAG AA Compliant (was #8E8E93)
         },
         border: '#E5E5EA',     // Very subtle divider
         primary: '#5856D6',    // Indigo (Brand)

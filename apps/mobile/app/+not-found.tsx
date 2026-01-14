@@ -1,8 +1,23 @@
-import { Link, Stack } from 'expo-router';
+import { Link, Stack, usePathname, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { Typography } from '../components/design-system/Typography';
+import { useEffect } from 'react';
 
 export default function NotFoundScreen() {
+    const pathname = usePathname();
+    const router = useRouter();
+
+    useEffect(() => {
+        // Intercept Share Extension "handshake" path
+        if (pathname?.includes("dataUrl=siftShareKey")) {
+            console.log("🔄 Redirecting Share Extension handshake to Dashboard");
+            router.replace("/(tabs)/");
+            return;
+        }
+
+        console.error("❌ 404 Not Found hit for path:", pathname);
+    }, [pathname]);
+
     return (
         <>
             <Stack.Screen options={{ title: 'Oops!' }} />

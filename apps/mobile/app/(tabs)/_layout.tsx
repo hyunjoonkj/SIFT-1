@@ -11,7 +11,8 @@ export default function TabLayout() {
                 headerShown: false,
                 tabBarStyle: {
                     position: 'absolute',
-                    borderTopWidth: 0,
+                    borderTopWidth: 0.5, // Hairline border
+                    borderTopColor: 'rgba(0,0,0,0.15)', // Subtle contrast definition
                     elevation: 0,
                     height: 85,
                     paddingTop: 8,
@@ -19,7 +20,8 @@ export default function TabLayout() {
                 tabBarBackground: () => (
                     <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
                 ),
-                tabBarActiveTintColor: Theme.colors.text.primary,
+                tabBarActiveTintColor: Theme.colors.primary, // Brand Indigo
+
                 tabBarInactiveTintColor: Theme.colors.text.tertiary,
                 tabBarShowLabel: true,
                 tabBarLabelStyle: {
@@ -32,7 +34,7 @@ export default function TabLayout() {
             <Tabs.Screen
                 name="index"
                 listeners={({ navigation }) => ({
-                    tabPress: (e) => {
+                    tabPress: (e: any) => {
                         if (navigation.isFocused()) {
                             e.preventDefault();
                             DeviceEventEmitter.emit('scrollToTopDashboard');

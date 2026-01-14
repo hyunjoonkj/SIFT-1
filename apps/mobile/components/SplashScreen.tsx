@@ -21,8 +21,7 @@ interface SplashScreenProps {
 export default function SplashScreen({ onFinish }: SplashScreenProps) {
     // Animation Values
     const scale = useSharedValue(1);
-    const opacity = useSharedValue(0);
-    const blur = useSharedValue(10); // Simulated blur via opacity layering
+    const containerOpacity = useSharedValue(1); // For Fade Out
     const logoOpacity = useSharedValue(0);
 
     // Background "Breathing" Animation
@@ -42,17 +41,34 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
         // Logo Reveal (Blur-in simulation)
         const GENTLE_EASING = Easing.bezier(0.25, 0.1, 0.25, 1.0);
 
-        // 1. Fade in
-        logoOpacity.value = withDelay(500, withTiming(1, { duration: 1500, easing: GENTLE_EASING }));
-        // 2. Scale down slightly (focus effect)
-        scale.value = withDelay(500, withTiming(1, { duration: 1500, easing: GENTLE_EASING }));
+        // 1. Fade in & Focus
+        logoOpacity.value = withDelay(200, withTiming(1, { duration: 1200, easing: GENTLE_EASING })); // Faster start
+        scale.value = withDelay(200, withTiming(1, { duration: 1200, easing: GENTLE_EASING }));
 
-        // Finish after delay
-        if (onFinish) {
-            const timer = setTimeout(onFinish, 3500); // 3.5s total splash time
-            return () => clearTimeout(timer);
-        }
+        // 2. Fade Out Sequence (Total ~2.5s)
+        // Start fade out at 2000ms
+        const timeout = setTimeout(() => {
+            containerOpacity.value = withTiming(0, { duration: 500, easing: Easing.out(Easing.ease) }, (finished) => {
+                if (finished && onFinish) {
+                    // Clean callback via JS thread if needed, but here we can just wait for timeout or runOnJS
+                }
+            });
+        }, 2200);
+
+        // Finish logic
+        const finishTimeout = setTimeout(() => {
+            if (onFinish) onFinish();
+        }, 2700); // 2.2s + 0.5s fade
+
+        return () => {
+            clearTimeout(timeout);
+            clearTimeout(finishTimeout);
+        };
     }, []);
+
+    const containerStyle = useAnimatedStyle(() => ({
+        opacity: containerOpacity.value
+    }));
 
     const animatedBgStyle = useAnimatedStyle(() => ({
         transform: [{ translateY: bgTranslateY.value }],
@@ -64,7 +80,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
     }));
 
     return (
-        <View style={styles.container}>
+        <Animated.View style={[styles.container, containerStyle]}>
             {/* Background Gradient Layer */}
             <Animated.View style={[styles.background, animatedBgStyle]}>
                 <LinearGradient
@@ -76,8 +92,9 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
                 />
             </Animated.View>
 
-            {/* Grain Overlay (Simulated with translucent textured View or just noise color) */}
+            {/* Grain Overlay - Enhanced Opacity */}
             <View style={styles.grainOverlay} pointerEvents="none" />
+            <View style={[styles.grainOverlay, { transform: [{ rotate: '90deg' }] }]} pointerEvents="none" />
 
             {/* Centered Logo */}
             <Animated.View style={[styles.content, logoStyle]}>
@@ -88,7 +105,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
                     Find the signal
                 </Typography>
             </Animated.View>
-        </View>
+        </Animated.View>
     );
 }
 
@@ -107,7 +124,7 @@ const styles = StyleSheet.create({
     },
     grainOverlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.02)', // Subtle noise simulation
+        backgroundColor: 'rgba(0,0,0,0.04)', // Increased opacity for texture
         zIndex: 1,
     },
     content: {

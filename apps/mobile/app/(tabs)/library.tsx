@@ -6,6 +6,7 @@ import LibraryGrid, { Collection } from '../../components/LibraryGrid';
 import { Toast } from '../../components/Toast';
 import { Search } from 'lucide-react-native';
 import SiftFeed from '../../components/SiftFeed';
+import { Theme } from '../../lib/theme';
 
 interface Page {
     id: string;
@@ -215,19 +216,32 @@ export default function LibraryScreen() {
 
     return (
         <View style={{ flex: 1, backgroundColor: '#F7F7F5' }}>
-            {/* Header with Search */}
-            <View className="px-5 pt-14 pb-4">
-                <Text className="text-[34px] font-bold tracking-tight text-[#37352F] mb-4">Library</Text>
-                <View className="flex-row items-center bg-white h-[50px] rounded-full px-4 border border-gray-200 shadow-sm">
-                    <Search size={20} color="#9CA3AF" />
+            {/* Header with Search (Notion Style) */}
+            <View className="px-5 pt-16 pb-4 bg-[#F7F7F5]">
+                <Text style={{ fontFamily: 'System', fontWeight: '700', fontSize: 34, color: '#37352F', letterSpacing: -0.5, marginBottom: 16 }}>
+                    Library
+                </Text>
+
+                <View
+                    style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: '#E3E3E8', // Apple Standard Fill
+                        height: 48, // Taller touch target
+                        borderRadius: 12, // Softer corners
+                        paddingHorizontal: 16
+                    }}
+                >
+                    <Search size={20} color="#8E8E93" />
                     <TextInput
-                        className="flex-1 text-[17px] ml-2 text-[#37352F] h-full"
+                        className="flex-1 text-[17px] ml-2 text-[#1C1C1E] h-full"
                         placeholder="Search your mind..."
-                        placeholderTextColor="#9CA3AF"
+                        placeholderTextColor="#8E8E93"
                         value={searchQuery}
                         onChangeText={setSearchQuery}
                         autoCapitalize="none"
                         clearButtonMode="while-editing"
+                        selectionColor={Theme.colors.primary} // Brand color cursor
                     />
                 </View>
             </View>
