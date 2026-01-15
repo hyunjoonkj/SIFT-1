@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { View, ScrollView, RefreshControl, Image, TouchableOpacity, StyleSheet, Pressable } from "react-native";
+import { View, ScrollView, RefreshControl, Image, TouchableOpacity, StyleSheet, Pressable, Dimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Typography } from "../../components/design-system/Typography";
 import { Theme } from "../../lib/theme";
@@ -7,6 +7,8 @@ import { Gear, Shield, Bell, CaretRight, User as UserIcon } from 'phosphor-react
 import { supabase } from "../../lib/supabase";
 import SiftFeed from "../../components/SiftFeed";
 import { useFocusEffect } from "expo-router";
+
+const { width } = Dimensions.get('window');
 
 export default function ProfileScreen() {
     const [savedPages, setSavedPages] = useState([]);
@@ -72,20 +74,15 @@ export default function ProfileScreen() {
                 {/* 2. BENTO ACTIONS */}
                 <Typography variant="caption" style={styles.sectionTitle}>Account</Typography>
                 <View style={styles.bentoGrid}>
-                    {/* Big Settings Tile */}
                     <BentoTile icon={UserIcon} title="Personal Info" subtitle="Edit details" wide />
-
-                    {/* Smaller Tiles */}
                     <View style={styles.row}>
                         <BentoTile icon={Bell} title="Notifications" />
                         <BentoTile icon={Shield} title="Privacy" />
                     </View>
-
-                    {/* Long Tile */}
                     <BentoTile icon={Gear} title="App Settings" subtitle="Preferences & Display" wide />
                 </View>
 
-                {/* 3. SAVED ITEMS (RE-INTEGRATED) */}
+                {/* 3. SAVED ITEMS */}
                 <View style={[styles.sectionHeader, { marginTop: 40 }]}>
                     <Typography variant="h1" style={styles.sectionTitleLarge}>Saved</Typography>
                     <TouchableOpacity>
@@ -110,7 +107,6 @@ export default function ProfileScreen() {
     );
 }
 
-// Sub-components
 const Stat = ({ label, value }: { label: string, value: string }) => (
     <View style={styles.statItem}>
         <Typography variant="h3" style={styles.statValue}>{value}</Typography>
@@ -145,7 +141,7 @@ const styles = StyleSheet.create({
         backgroundColor: Theme.colors.background,
     },
     scrollContent: {
-        paddingBottom: 140, // Space for nav bar
+        paddingBottom: 140,
     },
     header: {
         alignItems: 'center',
@@ -187,7 +183,6 @@ const styles = StyleSheet.create({
         color: Theme.colors.text.tertiary,
         marginTop: 2,
     },
-
     sectionTitle: {
         marginLeft: 20,
         marginBottom: 10,

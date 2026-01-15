@@ -52,9 +52,9 @@ export default function TabLayout() {
                 }}
             />
             <Tabs.Screen
-                name="library"
+                name="sift"
                 options={{
-                    title: "Library",
+                    title: "Sift",
                     tabBarIcon: ({ color, focused }) => (
                         <Ionicons
                             name={focused ? "layers" : "layers-outline"}
@@ -65,7 +65,7 @@ export default function TabLayout() {
                 }}
             />
             <Tabs.Screen
-                name="settings"
+                name="profile"
                 options={{
                     title: "Profile",
                     tabBarIcon: ({ color, focused }) => (
