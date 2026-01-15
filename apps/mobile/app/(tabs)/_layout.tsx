@@ -1,33 +1,30 @@
 import { Tabs } from "expo-router";
-import { DeviceEventEmitter, StyleSheet } from "react-native";
+import { DeviceEventEmitter } from "react-native";
 import { Theme } from "../../lib/theme";
-import { Ionicons } from '@expo/vector-icons';
+import { House, Archive, User } from 'phosphor-react-native';
 
 export default function TabLayout() {
     return (
         <Tabs
             screenOptions={{
                 headerShown: false,
-                // 1. THE BELI-STYLE CONTAINER
                 tabBarStyle: {
-                    backgroundColor: Theme.colors.background, // Oatmeal
-                    borderTopWidth: 0.5,        // Hairline divider
+                    backgroundColor: Theme.colors.background,
+                    borderTopWidth: 0.5,
                     borderTopColor: 'rgba(0,0,0,0.1)',
-                    height: 95,                 // Taller = More Premium
+                    height: 95,
                     paddingTop: 10,
-                    paddingBottom: 35,          // Space for home indicator
-                    elevation: 0,               // Flat look
+                    paddingBottom: 35,
+                    elevation: 0,
                     shadowOpacity: 0,
                 },
-                // 2. THE TEXT
                 tabBarLabelStyle: {
                     fontSize: 11,
                     fontWeight: '700',
                     marginTop: 4,
                 },
-                // 3. THE COLORS
-                tabBarActiveTintColor: Theme.colors.text.primary,   // Charcoal/Black
-                tabBarInactiveTintColor: '#999999',                 // Muted Gray
+                tabBarActiveTintColor: Theme.colors.text.primary,
+                tabBarInactiveTintColor: '#999999',
             }}
         >
             <Tabs.Screen
@@ -43,10 +40,10 @@ export default function TabLayout() {
                 options={{
                     title: "Home",
                     tabBarIcon: ({ color, focused }) => (
-                        <Ionicons
-                            name={focused ? "grid" : "grid-outline"}
+                        <House
                             size={24}
                             color={color}
+                            weight={focused ? "fill" : "regular"}
                         />
                     ),
                 }}
@@ -56,10 +53,10 @@ export default function TabLayout() {
                 options={{
                     title: "Sift",
                     tabBarIcon: ({ color, focused }) => (
-                        <Ionicons
-                            name={focused ? "layers" : "layers-outline"}
+                        <Archive
                             size={24}
                             color={color}
+                            weight={focused ? "fill" : "regular"}
                         />
                     ),
                 }}
@@ -69,10 +66,10 @@ export default function TabLayout() {
                 options={{
                     title: "Profile",
                     tabBarIcon: ({ color, focused }) => (
-                        <Ionicons
-                            name={focused ? "person" : "person-outline"}
+                        <User
                             size={24}
                             color={color}
+                            weight={focused ? "fill" : "regular"}
                         />
                     ),
                 }}
