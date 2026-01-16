@@ -6,7 +6,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Theme } from "../lib/theme";
 import * as SplashScreenIs from "expo-splash-screen";
 import * as SecureStore from 'expo-secure-store';
-import { View, Text } from "react-native";
+import { View, ImageBackground, StyleSheet } from "react-native";
 import SplashScreen from "../components/SplashScreen";
 import Onboarding from "../components/Onboarding";
 
@@ -88,11 +88,18 @@ export default function RootLayout() {
 
     return (
         <GestureHandlerRootView className="flex-1 bg-canvas">
-            <Stack initialRouteName="(tabs)" screenOptions={{ contentStyle: { backgroundColor: Theme.colors.background } }}>
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen name="share" options={{ headerShown: false, presentation: 'modal' }} />
-                <Stack.Screen name="+not-found" options={{ headerShown: false }} />
-            </Stack>
+            <ImageBackground
+                source={require("../assets/noise.png")}
+                style={StyleSheet.absoluteFill}
+                imageStyle={{ opacity: 0.04 }}
+                resizeMode="repeat"
+            >
+                <Stack initialRouteName="(tabs)" screenOptions={{ contentStyle: { backgroundColor: 'transparent' }, headerShown: false }}>
+                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                    <Stack.Screen name="share" options={{ headerShown: false, presentation: 'modal' }} />
+                    <Stack.Screen name="+not-found" options={{ headerShown: false }} />
+                </Stack>
+            </ImageBackground>
         </GestureHandlerRootView>
     );
 }

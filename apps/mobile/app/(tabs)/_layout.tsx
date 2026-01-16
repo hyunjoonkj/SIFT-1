@@ -49,7 +49,7 @@ export default function TabLayout() {
                 }}
             />
             <Tabs.Screen
-                name="sift"
+                name="library"
                 options={{
                     title: "Sift",
                     tabBarIcon: ({ color, focused }) => (
@@ -62,7 +62,7 @@ export default function TabLayout() {
                 }}
             />
             <Tabs.Screen
-                name="profile"
+                name="settings"
                 options={{
                     title: "Profile",
                     tabBarIcon: ({ color, focused }) => (
